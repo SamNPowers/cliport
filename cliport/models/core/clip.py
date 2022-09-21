@@ -488,9 +488,10 @@ def build_model(state_dict: dict):
     )
 
     for key in ["input_resolution", "context_length", "vocab_size"]:
-        del state_dict[key]
+        if key in state_dict:
+            del state_dict[key]
 
-    convert_weights(model)
+    #convert_weights(model)  # TODO: spowers, half not fully supported...
     model.load_state_dict(state_dict)
     return model.eval()
 

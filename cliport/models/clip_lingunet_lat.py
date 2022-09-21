@@ -31,7 +31,7 @@ class CLIPLingUNetLat(nn.Module):
         self._build_decoder()
 
     def _load_clip(self):
-        model, _ = load_clip("RN50", device=self.device)
+        model, _ = load_clip("RN50", device=self.device, jit=False)
         self.clip_rn50 = build_model(model.state_dict()).to(self.device)
         del model
 

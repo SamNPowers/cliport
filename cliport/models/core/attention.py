@@ -37,7 +37,7 @@ class Attention(nn.Module):
 
     def _build_nets(self):
         stream_one_fcn, _ = self.stream_fcn
-        self.attn_stream = models.names[stream_one_fcn](self.in_shape, 1, self.cfg, self.device)
+        self.attn_stream = models.names[stream_one_fcn](self.in_shape, 1, self.cfg, self.device, self.preprocess)
         print(f"Attn FCN: {stream_one_fcn}")
 
     def attend(self, x):
@@ -45,8 +45,15 @@ class Attention(nn.Module):
 
     def forward(self, inp_img, softmax=True):
         """Forward pass."""
-        in_data = np.pad(inp_img, self.padding, mode='constant')
-        in_shape = (1,) + in_data.shape
+        padding = np.array([[0, 0]])
+        padding = np.concatenate((padding, self.padding))
+        in_data = np.pad(inp_img, padding, mode='constant')
+
+        if len(in_data.shape) == 3:
+            in_shape = (1,) + in_data.shape
+        else:
+            in_shape = in_data.shape
+
         in_data = in_data.reshape(in_shape)
         in_tens = torch.from_numpy(in_data).to(dtype=torch.float, device=self.device) # [B W H 6]
 
@@ -58,7 +65,7 @@ class Attention(nn.Module):
         in_tens = in_tens.repeat(self.n_rotations, 1, 1, 1)
         in_tens = self.rotator(in_tens, pivot=pv)
 
-        # Forward pass.
+        # Forward pass.  # TODO: why is this a for loop instead of a batch?
         logits = []
         for x in in_tens:
             lgts = self.attend(x)
@@ -69,12 +76,12 @@ class Attention(nn.Module):
         logits = self.rotator(logits, reverse=True, pivot=pv)
         logits = torch.cat(logits, dim=0)
         c0 = self.padding[:2, 0]
-        c1 = c0 + inp_img.shape[:2]
-        logits = logits[:, :, c0[0]:c1[0], c0[1]:c1[1]]
+        c1 = c0 + inp_img.shape[1:3]
+        logits = logits[:, :, c0[0]:c1[0], c0[1]:c1[1]]  # TODO: check...
 
         logits = logits.permute(1, 2, 3, 0)  # [B W H 1]
-        output = logits.reshape(1, np.prod(logits.shape))
+        output = logits.reshape(logits.shape[0], np.prod(logits.shape[1:]))
         if softmax:
             output = F.softmax(output, dim=-1)
-            output = output.reshape(logits.shape[1:])
+            output = output.reshape(logits.shape)
         return output

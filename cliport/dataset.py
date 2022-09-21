@@ -166,10 +166,14 @@ class RavensDataset(Dataset):
         assert img.shape == self.in_shape, img.shape
         return img
 
-    def process_sample(self, datum, augment=True):
+    def process_sample(self, datum, augment=True, skip_get_image=False):
         # Get training labels from data sample.
         (obs, act, _, info) = datum
-        img = self.get_image(obs)
+
+        if skip_get_image:
+            img = obs
+        else:
+            img = self.get_image(obs)
 
         p0, p1 = None, None
         p0_theta, p1_theta = None, None

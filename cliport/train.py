@@ -25,7 +25,7 @@ def main(cfg):
     last_checkpoint = last_checkpoint_path if os.path.exists(last_checkpoint_path) and cfg['train']['load_from_last_ckpt'] else None
     checkpoint_callback = ModelCheckpoint(
         monitor=cfg['wandb']['saver']['monitor'],
-        filepath=os.path.join(checkpoint_path, 'best'),
+        dirpath=os.path.join(checkpoint_path, 'best'),
         save_top_k=1,
         save_last=True,
     )
@@ -36,9 +36,8 @@ def main(cfg):
         gpus=cfg['train']['gpu'],
         fast_dev_run=cfg['debug'],
         logger=wandb_logger,
-        checkpoint_callback=checkpoint_callback,
+        callbacks=[checkpoint_callback],
         max_epochs=max_epochs,
-        automatic_optimization=False,
         check_val_every_n_epoch=max_epochs // 50,
         resume_from_checkpoint=last_checkpoint,
     )

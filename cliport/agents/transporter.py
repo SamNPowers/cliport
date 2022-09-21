@@ -20,7 +20,7 @@ class TransporterAgent(LightningModule):
         super().__init__()
         utils.set_seed(0)
 
-        self.device_type = torch.device('cuda' if torch.cuda.is_available() else 'cpu') # this is bad for PL :(
+        self.device_type = "cpu" #torch.device('cuda' if torch.cuda.is_available() else 'cpu') # this is bad for PL :(
         self.name = name
         self.cfg = cfg
         self.train_ds = train_ds
@@ -33,7 +33,7 @@ class TransporterAgent(LightningModule):
         self.n_rotations = cfg['train']['n_rotations']
 
         self.pix_size = 0.003125
-        self.in_shape = (320, 160, 6)
+        self.in_shape = (320, 160, 12) #6)
         self.cam_config = cameras.RealSenseD415.CONFIG
         self.bounds = np.array([[0.25, 0.75], [-0.5, 0.5], [0, 0.28]])
 
@@ -84,11 +84,14 @@ class TransporterAgent(LightningModule):
         theta_i = theta / (2 * np.pi / self.attention.n_rotations)
         theta_i = np.int32(np.round(theta_i)) % self.attention.n_rotations
         inp_img = inp['inp_img']
-        label_size = inp_img.shape[:2] + (self.attention.n_rotations,)
+        label_size = inp_img.shape[:3] + (self.attention.n_rotations,)
         label = np.zeros(label_size)
-        label[p[0], p[1], theta_i] = 1
-        label = label.transpose((2, 0, 1))
-        label = label.reshape(1, np.prod(label.shape))
+
+        for p_id, p_i in enumerate(p):
+            label[p_id, p_i[0], p_i[1], theta_i] = 1
+
+        label = label.transpose((0, 3, 1, 2))
+        label = label.reshape(label.shape[0], np.prod(label.shape[1:]))
         label = torch.from_numpy(label).to(dtype=torch.float, device=out.device)
 
         # Get loss.
@@ -97,7 +100,8 @@ class TransporterAgent(LightningModule):
         # Backpropagate.
         if backprop:
             attn_optim = self._optimizers['attn']
-            self.manual_backward(loss, attn_optim)
+            loss.backward()
+            #self.manual_backward(loss, attn_optim)  # TODO: why was this manual? It wasn't configured properly for it
             attn_optim.step()
             attn_optim.zero_grad()
 
@@ -121,7 +125,11 @@ class TransporterAgent(LightningModule):
         inp_img = inp['inp_img']
         p0 = inp['p0']
 
-        output = self.transport.forward(inp_img, p0, softmax=softmax)
+        if isinstance(self.transport, Attention):
+            output = self.transport.forward(inp_img, softmax=softmax)
+        else:
+            output = self.transport.forward(inp_img, p0, softmax=softmax)
+
         return output
 
     def transport_training_step(self, frame, backprop=True, compute_err=False):
@@ -139,20 +147,24 @@ class TransporterAgent(LightningModule):
         itheta = np.int32(np.round(itheta)) % self.transport.n_rotations
 
         # Get one-hot pixel label map.
+        # TODO: de-dupe with attn_criterion
         inp_img = inp['inp_img']
-        label_size = inp_img.shape[:2] + (self.transport.n_rotations,)
+        label_size = inp_img.shape[:3] + (self.transport.n_rotations,)
         label = np.zeros(label_size)
-        label[q[0], q[1], itheta] = 1
+
+        for p_id, p_i in enumerate(p):
+            label[p_id, p_i[0], p_i[1], theta_i] = 1
 
         # Get loss.
-        label = label.transpose((2, 0, 1))
-        label = label.reshape(1, np.prod(label.shape))
+        label = label.transpose((0, 3, 1, 2))
+        label = label.reshape(label.shape[0], np.prod(label.shape[1:]))
         label = torch.from_numpy(label).to(dtype=torch.float, device=output.device)
         output = output.reshape(1, np.prod(output.shape))
         loss = self.cross_entropy_with_logits(output, label)
         if backprop:
             transport_optim = self._optimizers['trans']
-            self.manual_backward(loss, transport_optim)
+            loss.backward()
+            #self.manual_backward(loss, transport_optim)
             transport_optim.step()
             transport_optim.zero_grad()
  
@@ -193,9 +205,9 @@ class TransporterAgent(LightningModule):
         self.log('tr/loss', total_loss)
         self.total_steps = step
 
-        self.trainer.train_loop.running_loss.append(total_loss)
+        #self.trainer.train_loop.running_loss.append(total_loss)
 
-        self.check_save_iteration()
+        #self.check_save_iteration()
 
         return dict(
             loss=total_loss,
@@ -291,33 +303,62 @@ class TransporterAgent(LightningModule):
     def act(self, obs, info=None, goal=None):  # pylint: disable=unused-argument
         """Run inference and return best action given visual observations."""
         # Get heightmap from RGB-D images.
-        img = self.test_ds.get_image(obs)
+        img = obs.unsqueeze(0) #self.test_ds.get_image(obs)
 
         # Attention model forward pass.
         pick_inp = {'inp_img': img}
         pick_conf = self.attn_forward(pick_inp)
+        pick_conf_shape = pick_conf.shape
+        pick_conf = pick_conf.reshape((pick_conf_shape[0], -1))
         pick_conf = pick_conf.detach().cpu().numpy()
-        argmax = np.argmax(pick_conf)
-        argmax = np.unravel_index(argmax, shape=pick_conf.shape)
-        p0_pix = argmax[:2]
-        p0_theta = argmax[2] * (2 * np.pi / pick_conf.shape[2])
+        argmax = np.argmax(pick_conf, axis=-1)
+        argmax = np.unravel_index(argmax, shape=pick_conf_shape)
+        all_p0_pix = np.array(argmax[1:3]).transpose(1, 0)
+        all_p0_theta = argmax[3] * (2 * np.pi / pick_conf_shape[3])
 
         # Transport model forward pass.
-        place_inp = {'inp_img': img, 'p0': p0_pix}
+        place_inp = {'inp_img': img, 'p0': all_p0_pix}
         place_conf = self.trans_forward(place_inp)
-        place_conf = place_conf.permute(1, 2, 0)
+        place_conf = place_conf.permute(0, 2, 3, 1)
+        place_conf_shape = place_conf.shape
+        place_conf = place_conf.reshape((place_conf.shape[0], -1))
         place_conf = place_conf.detach().cpu().numpy()
-        argmax = np.argmax(place_conf)
-        argmax = np.unravel_index(argmax, shape=place_conf.shape)
-        p1_pix = argmax[:2]
-        p1_theta = argmax[2] * (2 * np.pi / place_conf.shape[2])
+        argmax = np.argmax(place_conf, axis=-1)
+        argmax = np.unravel_index(argmax, shape=place_conf_shape)
+        all_p1_pix = np.array(argmax[1:3]).transpose(1, 0)
+        all_p1_theta = argmax[3] * (2 * np.pi / place_conf_shape[3])
 
         # Pixels to end effector poses.
-        hmap = img[:, :, 3]
-        p0_xyz = utils.pix_to_xyz(p0_pix, hmap, self.bounds, self.pix_size)
-        p1_xyz = utils.pix_to_xyz(p1_pix, hmap, self.bounds, self.pix_size)
-        p0_xyzw = utils.eulerXYZ_to_quatXYZW((0, 0, -p0_theta))
-        p1_xyzw = utils.eulerXYZ_to_quatXYZW((0, 0, -p1_theta))
+        all_p0_xyz = []
+        all_p1_xyz = []
+        all_p0_xyzw = []
+        all_p1_xyzw = []
+
+        # TODO: is this batchable?
+        for p_id, p0_pix in enumerate(all_p0_pix):
+            hmap = img[p_id, :, :, 3]  # TODO
+            p0_xyz = utils.pix_to_xyz(p0_pix, hmap, self.bounds, self.pix_size)
+            all_p0_xyz.append(p0_xyz)
+
+        for p_id, p1_pix in enumerate(all_p1_pix):
+            hmap = img[p_id, :, :, 3]  # TODO
+            p1_xyz = utils.pix_to_xyz(p1_pix, hmap, self.bounds, self.pix_size)
+            all_p1_xyz.append(p1_xyz)
+
+        for p_id, p0_theta in enumerate(all_p0_theta):
+            hmap = img[p_id, :, :, 3]  # TODO
+            p0_xyzw = utils.eulerXYZ_to_quatXYZW((0, 0, -p0_theta))
+            all_p0_xyzw.append(p0_xyzw)
+
+        for p_id, p1_theta in enumerate(all_p1_theta):
+            hmap = img[p_id, :, :, 3]  # TODO
+            p1_xyzw = utils.eulerXYZ_to_quatXYZW((0, 0, -p1_theta))
+            all_p1_xyzw.append(p1_xyzw)
+
+        #p0_xyz = utils.pix_to_xyz(p0_pix, hmap, self.bounds, self.pix_size)
+        #p1_xyz = utils.pix_to_xyz(p1_pix, hmap, self.bounds, self.pix_size)
+        #p0_xyzw = utils.eulerXYZ_to_quatXYZW((0, 0, -p0_theta))
+        #p1_xyzw = utils.eulerXYZ_to_quatXYZW((0, 0, -p1_theta))
 
         return {
             'pose0': (np.asarray(p0_xyz), np.asarray(p0_xyzw)),
@@ -363,6 +404,31 @@ class OriginalTransporterAgent(TransporterAgent):
             in_shape=self.in_shape,
             n_rotations=self.n_rotations,
             crop_size=self.crop_size,
+            preprocess=utils.preprocess,
+            cfg=self.cfg,
+            device=self.device_type,
+        )
+
+
+class FullAttentionTransporterAgent(TransporterAgent):
+
+    def __init__(self, name, cfg, train_ds, test_ds):
+        super().__init__(name, cfg, train_ds, test_ds)
+
+    def _build_model(self):
+        stream_fcn = 'plain_resnet'
+        self.attention = Attention(
+            stream_fcn=(stream_fcn, None),
+            in_shape=self.in_shape,
+            n_rotations=1,
+            preprocess=utils.preprocess,
+            cfg=self.cfg,
+            device=self.device_type,
+        )
+        self.transport = Attention(
+            stream_fcn=(stream_fcn, None),
+            in_shape=self.in_shape,
+            n_rotations=1,
             preprocess=utils.preprocess,
             cfg=self.cfg,
             device=self.device_type,
