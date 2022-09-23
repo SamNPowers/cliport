@@ -573,19 +573,19 @@ class ImageRotator:
     def __call__(self, x_list, pivot, reverse=False):
         rot_x_list = []
         for i, angle in enumerate(self.angles):
-            x = x_list[i].unsqueeze(0)
+            x = x_list[i]  # TODO: handled outside this fn .unsqueeze(0)
 
             # create transformation (rotation)
             alpha: float = angle if not reverse else (-1.0 * angle)  # in degrees
-            angle: torch.tensor = torch.ones(1) * alpha
+            angle: torch.tensor = torch.ones(x.shape[0]) * alpha
 
             # define the rotation center
-            center: torch.tensor = torch.ones(1, 2)
+            center: torch.tensor = torch.ones(x.shape[0], 2)
             center[:, 0] = torch.tensor(pivot[1])
             center[:, 1] = torch.tensor(pivot[0])
 
             # define the scale factor
-            scale: torch.tensor = torch.ones(1, 2)
+            scale: torch.tensor = torch.ones(x.shape[0], 2)
 
             # compute the transformation matrix
             M: torch.tensor = kornia.geometry.get_rotation_matrix2d(center, angle, scale)

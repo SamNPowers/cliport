@@ -55,14 +55,16 @@ class Attention(nn.Module):
             in_shape = in_data.shape
 
         in_data = in_data.reshape(in_shape)
-        in_tens = torch.from_numpy(in_data).to(dtype=torch.float, device=self.device) # [B W H 6]
+
+        device = self.attn_stream.layers._modules['0'].weight.device
+        in_tens = torch.from_numpy(in_data).to(dtype=torch.float, device=device) # [B W H 6]
 
         # Rotation pivot.
         pv = np.array(in_data.shape[1:3]) // 2
 
         # Rotate input.
         in_tens = in_tens.permute(0, 3, 1, 2)  # [B 6 W H]
-        in_tens = in_tens.repeat(self.n_rotations, 1, 1, 1)
+        in_tens = in_tens.repeat(self.n_rotations, 1, 1, 1, 1)  # [R B 6 W H]
         in_tens = self.rotator(in_tens, pivot=pv)
 
         # Forward pass.  # TODO: why is this a for loop instead of a batch?
@@ -70,7 +72,7 @@ class Attention(nn.Module):
         for x in in_tens:
             lgts = self.attend(x)
             logits.append(lgts)
-        logits = torch.cat(logits, dim=0)
+        logits = torch.stack(logits, dim=0)  # OG: cat. Stacking to preserve dims for reversal
 
         # Rotate back output.
         logits = self.rotator(logits, reverse=True, pivot=pv)
@@ -79,9 +81,10 @@ class Attention(nn.Module):
         c1 = c0 + inp_img.shape[1:3]
         logits = logits[:, :, c0[0]:c1[0], c0[1]:c1[1]]  # TODO: check...
 
-        logits = logits.permute(1, 2, 3, 0)  # [B W H 1]
+        logits = logits.permute(0, 2, 3, 1)  # [B W H 1] -- TODO: spowers, last dim is rotation, I think. No wait, that got cat'd away.
         output = logits.reshape(logits.shape[0], np.prod(logits.shape[1:]))
         if softmax:
             output = F.softmax(output, dim=-1)
-            output = output.reshape(logits.shape)
+
+        output = output.reshape(logits.shape)
         return output

@@ -15,7 +15,7 @@ class Transport(nn.Module):
 
         self.iters = 0
         self.stream_fcn = stream_fcn
-        self.n_rotations = 1 #n_rotations  -- # TODO
+        self.n_rotations = n_rotations # -- # TODO
         self.crop_size = crop_size  # crop size must be N*16 (e.g. 96)
         self.preprocess = preprocess
         self.cfg = cfg
@@ -99,11 +99,10 @@ class Transport(nn.Module):
 
             batch_crop = crop[:, :, pv[batch_id, 0]-hcrop:pv[batch_id, 0]+hcrop, pv[batch_id, 1]-hcrop:pv[batch_id, 1]+hcrop]
 
-            logits, kernel = self.transport(in_tensor, batch_crop)
+            logits, kernel = self.transport(in_tensor[batch_id].unsqueeze(0), batch_crop)
             correlated_kernel = self.correlate(logits, kernel, softmax)
 
             correlated_kernels.append(correlated_kernel)
-
 
         # TODO(Mohit): Crop after network. Broken for now.
         # in_tensor = in_tensor.permute(0, 3, 1, 2)

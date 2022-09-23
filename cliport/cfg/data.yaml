@@ -13,7 +13,7 @@ disp: False  # visualize PyBullet
 shared_memory: False
 task: packing-boxes-pairs-seen-colors
 mode: train # 'train' or 'val' or 'test'
-n: 1000 # number of demos to generate
+n: 100 # number of demos to generate
 save_data: True  # write episodes to disk
 
 dataset:

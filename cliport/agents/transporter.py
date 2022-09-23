@@ -94,6 +94,8 @@ class TransporterAgent(LightningModule):
         label = label.reshape(label.shape[0], np.prod(label.shape[1:]))
         label = torch.from_numpy(label).to(dtype=torch.float, device=out.device)
 
+        out = out.reshape(out.shape[0], np.prod(out.shape[1:]))
+
         # Get loss.
         loss = self.cross_entropy_with_logits(out, label)
 
@@ -153,13 +155,13 @@ class TransporterAgent(LightningModule):
         label = np.zeros(label_size)
 
         for p_id, p_i in enumerate(p):
-            label[p_id, p_i[0], p_i[1], theta_i] = 1
+            label[p_id, p_i[0], p_i[1], itheta[p_id]] = 1
 
         # Get loss.
         label = label.transpose((0, 3, 1, 2))
         label = label.reshape(label.shape[0], np.prod(label.shape[1:]))
         label = torch.from_numpy(label).to(dtype=torch.float, device=output.device)
-        output = output.reshape(1, np.prod(output.shape))
+        output = output.reshape(output.shape[0], np.prod(output.shape[1:]))
         loss = self.cross_entropy_with_logits(output, label)
         if backprop:
             transport_optim = self._optimizers['trans']
@@ -319,7 +321,7 @@ class TransporterAgent(LightningModule):
         # Transport model forward pass.
         place_inp = {'inp_img': img, 'p0': all_p0_pix}
         place_conf = self.trans_forward(place_inp)
-        place_conf = place_conf.permute(0, 2, 3, 1)
+        #place_conf = place_conf.permute(0, 2, 3, 1)
         place_conf_shape = place_conf.shape
         place_conf = place_conf.reshape((place_conf.shape[0], -1))
         place_conf = place_conf.detach().cpu().numpy()
