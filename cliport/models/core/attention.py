@@ -56,7 +56,9 @@ class Attention(nn.Module):
 
         in_data = in_data.reshape(in_shape)
 
-        device = self.attn_stream.layers._modules['0'].weight.device
+        #device = self.attn_stream.layers._modules['0'].weight.device
+        device = self.attn_stream.layer1._modules['0'].conv1.weight.device
+        #device = self.attn_stream_one._modules['conv1']._modules['0'].weight.device
         in_tens = torch.from_numpy(in_data).to(dtype=torch.float, device=device) # [B W H 6]
 
         # Rotation pivot.
@@ -65,7 +67,7 @@ class Attention(nn.Module):
         # Rotate input.
         in_tens = in_tens.permute(0, 3, 1, 2)  # [B 6 W H]
         in_tens = in_tens.repeat(self.n_rotations, 1, 1, 1, 1)  # [R B 6 W H]
-        in_tens = self.rotator(in_tens, pivot=pv)
+        in_tens = self.rotator(in_tens, pivot=np.expand_dims(pv, 0))
 
         # Forward pass.  # TODO: why is this a for loop instead of a batch?
         logits = []
@@ -75,7 +77,7 @@ class Attention(nn.Module):
         logits = torch.stack(logits, dim=0)  # OG: cat. Stacking to preserve dims for reversal
 
         # Rotate back output.
-        logits = self.rotator(logits, reverse=True, pivot=pv)
+        logits = self.rotator(logits, reverse=True, pivot=np.expand_dims(pv, 0))
         logits = torch.cat(logits, dim=0)
         c0 = self.padding[:2, 0]
         c1 = c0 + inp_img.shape[1:3]

@@ -581,8 +581,8 @@ class ImageRotator:
 
             # define the rotation center
             center: torch.tensor = torch.ones(x.shape[0], 2)
-            center[:, 0] = torch.tensor(pivot[1])
-            center[:, 1] = torch.tensor(pivot[0])
+            center[:, 0] = torch.tensor(pivot[:, 1])  # TODO: spowers: why are these indices inverted?
+            center[:, 1] = torch.tensor(pivot[:, 0])
 
             # define the scale factor
             scale: torch.tensor = torch.ones(x.shape[0], 2)

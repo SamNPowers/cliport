@@ -45,8 +45,8 @@ class Transport(nn.Module):
     def _build_nets(self):
         stream_one_fcn, _ = self.stream_fcn
         model = models.names[stream_one_fcn]
-        self.key_resnet = model(self.in_shape, self.output_dim, self.cfg, self.device)
-        self.query_resnet = model(self.kernel_shape, self.kernel_dim, self.cfg, self.device)
+        self.key_resnet = model(self.in_shape, self.output_dim, self.cfg, self.device, preprocess=utils.preprocess)
+        self.query_resnet = model(self.kernel_shape, self.kernel_dim, self.cfg, self.device, preprocess=utils.preprocess)
         print(f"Transport FCN: {stream_one_fcn}")
 
     def correlate(self, in0, in1, softmax):
@@ -58,7 +58,7 @@ class Transport(nn.Module):
             output_shape = output.shape
             output = output.reshape((1, np.prod(output.shape)))
             output = F.softmax(output, dim=-1)
-            output = output.reshape(output_shape[1:])
+            output = output.reshape(output_shape)# [1:])
         return output
 
     def transport(self, in_tensor, crop):
@@ -79,7 +79,9 @@ class Transport(nn.Module):
             in_shape = input_data.shape
 
         input_data = input_data.reshape(in_shape) # [B W H D]
-        in_tensor = torch.from_numpy(input_data).to(dtype=torch.float, device=self.device)
+        #device = self.key_stream_one._modules['conv1']._modules['0'].weight.device
+        device = self.query_resnet.layer1._modules['0'].conv1.weight.device
+        in_tensor = torch.from_numpy(input_data).to(dtype=torch.float, device=device)
 
         # Rotation pivot.
         pv = np.array(p)[:, :] + self.pad_size
@@ -90,19 +92,22 @@ class Transport(nn.Module):
         # Crop before network (default from Transporters CoRL 2020).
         hcrop = self.pad_size
         in_tensor = in_tensor.permute(0, 3, 1, 2) # [B D W H]
-        correlated_kernels = []
 
-        for batch_id in range(in_shape[0]):  # TODO: batch better
-            crop = in_tensor[batch_id].repeat(self.n_rotations, 1, 1, 1)
-            crop = self.rotator(crop, pivot=pv[batch_id])
-            crop = torch.cat(crop, dim=0)
+        crop = in_tensor.repeat(self.n_rotations, 1, 1, 1, 1)  # R B C H W
+        crop = self.rotator(crop, pivot=pv)
+        crop = torch.stack(crop, dim=0)
+        all_correlated_kernels = []
 
-            batch_crop = crop[:, :, pv[batch_id, 0]-hcrop:pv[batch_id, 0]+hcrop, pv[batch_id, 1]-hcrop:pv[batch_id, 1]+hcrop]
+        for batch_id in range(pv.shape[0]):
+            batch_crop = crop[:, batch_id, :, pv[batch_id, 0]-hcrop:pv[batch_id, 0]+hcrop, pv[batch_id, 1]-hcrop:pv[batch_id, 1]+hcrop]
 
             logits, kernel = self.transport(in_tensor[batch_id].unsqueeze(0), batch_crop)
-            correlated_kernel = self.correlate(logits, kernel, softmax)
 
-            correlated_kernels.append(correlated_kernel)
+            correlated_kernel = self.correlate(logits, kernel, softmax)  # 1, R, H, W
+            #correlated_kernel = correlated_kernel.reshape(self.n_rotations, *correlated_kernel.shape[2:])  # R B C H W  # TODO: might not be right, rough.
+            all_correlated_kernels.append(correlated_kernel)
+
+        all_correlated_kernels = torch.cat(all_correlated_kernels, dim=0)
 
         # TODO(Mohit): Crop after network. Broken for now.
         # in_tensor = in_tensor.permute(0, 3, 1, 2)
@@ -114,5 +119,5 @@ class Transport(nn.Module):
         # kernel = crop[:, :, pv[0]-hcrop:pv[0]+hcrop, pv[1]-hcrop:pv[1]+hcrop]
         # kernel = crop[:, :, p[0]:(p[0] + self.crop_size), p[1]:(p[1] + self.crop_size)]
 
-        return torch.stack(correlated_kernels)
+        return all_correlated_kernels.permute(0, 2, 3, 1)  # B H W R
 
