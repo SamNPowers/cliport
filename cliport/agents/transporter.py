@@ -158,7 +158,7 @@ class TransporterAgent(LightningModule):
             label[p_id, p_i[0], p_i[1], itheta[p_id]] = 1
 
         # Get loss.
-        label = label.transpose((0, 3, 1, 2))
+        #label = label.transpose((0, 3, 1, 2))
         label = label.reshape(label.shape[0], np.prod(label.shape[1:]))
         label = torch.from_numpy(label).to(dtype=torch.float, device=output.device)
         output = output.reshape(output.shape[0], np.prod(output.shape[1:]))
