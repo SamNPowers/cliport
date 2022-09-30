@@ -53,6 +53,8 @@ def main(cfg):
 
     # Config
     data_dir = cfg['train']['data_dir']
+    train_dir = cfg['train']['train_dir']
+    val_dir = cfg['train']['val_dir']
     task = cfg['train']['task']
     agent_type = cfg['train']['agent']
     n_demos = cfg['train']['n_demos']
@@ -65,9 +67,13 @@ def main(cfg):
         train_ds = RavensMultiTaskDataset(data_dir, cfg, group=task, mode='train', n_demos=n_demos, augment=True)
         val_ds = RavensMultiTaskDataset(data_dir, cfg, group=task, mode='val', n_demos=n_val, augment=False)
     else:
-        train_ds = RavensDataset(os.path.join(data_dir, '{}-train'.format(task)), cfg, n_demos=n_demos, augment=True)
-        val_ds = RavensDataset(os.path.join(data_dir, '{}-val'.format(task)), cfg, n_demos=n_val, augment=False)
+        #train_ds = RavensDataset(os.path.join(data_dir, '{}-train'.format(task)), cfg, n_demos=n_demos, augment=True)
+        #val_ds = RavensDataset(os.path.join(data_dir, '{}-val'.format(task)), cfg, n_demos=n_val, augment=False)
 
+        train_ds = RavensDataset(train_dir, cfg, n_demos=n_demos, augment=True)
+        print(f"Val dir: {val_dir}")
+        val_ds = RavensDataset(val_dir, cfg, n_demos=n_val, augment=False)
+        
     # Initialize agent
     agent = agents.names[agent_type](name, cfg, train_ds, val_ds)
 

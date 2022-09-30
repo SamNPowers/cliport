@@ -224,7 +224,7 @@ class Environment(gym.Env):
         # Get task rewards.
         reward, info = self.task.reward() if action is not None else (0, {})
         done = self.task.done()
-
+        print(f"Env done: {done}")
         # Add ground truth robot state into info.
         info.update(self.info)
 

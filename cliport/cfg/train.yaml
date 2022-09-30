@@ -18,6 +18,7 @@ train:
   # folders
   exp_folder: exps
   train_dir: ${root_dir}/${train.exp_folder}/${train.task}-${train.agent}-n${train.n_demos}-train
+  val_dir: ${root_dir}/${train.exp_folder}/${train.task}-${train.agent}-n${train.n_demos}-val
   data_dir: ${root_dir}/data
 
   # task configs
@@ -40,7 +41,7 @@ train:
   log: False # log metrics and stats to wandb
   n_val: 100
   val_repeats: 1
-  save_steps: [1000, 2000, 3000, 4000, 5000, 7000, 10000, 20000, 40000, 80000, 120000, 160000, 200000, 300000, 400000, 500000, 600000, 800000, 1000000, 1200000]
+  save_steps: [10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 110, 120, 130, 140, 150, 160, 170, 180, 190, 200, 1000, 2000, 3000, 4000, 5000, 7000, 10000, 20000, 40000, 80000, 120000, 160000, 200000, 300000, 400000, 500000, 600000, 800000, 1000000, 1200000]
   load_from_last_ckpt: True
 
 wandb:

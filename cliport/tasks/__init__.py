@@ -40,6 +40,7 @@ from cliport.tasks.towers_of_hanoi import TowersOfHanoi
 from cliport.tasks.towers_of_hanoi_seq import TowersOfHanoiSeqSeenColors
 from cliport.tasks.towers_of_hanoi_seq import TowersOfHanoiSeqUnseenColors
 from cliport.tasks.towers_of_hanoi_seq import TowersOfHanoiSeqFull
+from ravens.tasks.put_block_base_mcts import PutBlockBaseMCTS
 
 names = {
     # demo conditioned
@@ -84,4 +85,7 @@ names = {
     'towers-of-hanoi-seq-seen-colors': TowersOfHanoiSeqSeenColors,
     'towers-of-hanoi-seq-unseen-colors': TowersOfHanoiSeqUnseenColors,
     'towers-of-hanoi-seq-full': TowersOfHanoiSeqFull,
+
+    # Ravens Visual Foresight
+    'put-block-base-mcts': PutBlockBaseMCTS,
 }

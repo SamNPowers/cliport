@@ -210,6 +210,7 @@ class TransporterAgent(LightningModule):
             filename = f"steps={steps}-val_loss={val_loss:0.8f}.ckpt"
             checkpoint_path = os.path.join(self.cfg['train']['train_dir'], 'checkpoints')
             ckpt_path = os.path.join(checkpoint_path, filename)
+            print(f"Saving checkpoint: {ckpt_path}")
             self.trainer.save_checkpoint(ckpt_path)
 
         if (global_step + 1) % 1000 == 0:
@@ -242,7 +243,8 @@ class TransporterAgent(LightningModule):
         loss1 /= self.val_repeats
         val_total_loss = loss0 + loss1
 
-        self.trainer.evaluation_loop.trainer.train_loop.running_loss.append(val_total_loss)
+        # TODO: spowers
+        #self.trainer.evaluation_loop.trainer.train_loop.running_loss.append(val_total_loss)
 
         return dict(
             val_loss=val_total_loss,
