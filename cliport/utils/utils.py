@@ -588,11 +588,11 @@ class ImageRotator:
             scale: torch.tensor = torch.ones(1, 2)
 
             # compute the transformation matrix
-            M: torch.tensor = kornia.get_rotation_matrix2d(center, angle, scale)
+            M: torch.tensor = kornia.geometry.get_rotation_matrix2d(center, angle, scale)
 
             # apply the transformation to original image
             _, _, h, w = x.shape
-            x_warped: torch.tensor = kornia.warp_affine(x.float(), M.to(x.device), dsize=(h, w))
+            x_warped: torch.tensor = kornia.geometry.warp_affine(x.float(), M.to(x.device), dsize=(h, w))
             x_warped = x_warped
             rot_x_list.append(x_warped)
 

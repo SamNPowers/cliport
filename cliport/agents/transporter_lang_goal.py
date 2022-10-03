@@ -75,7 +75,7 @@ class TwoStreamClipLingUNetTransporterAgent(TransporterAgent):
         """Run inference and return best action given visual observations."""
         # Get heightmap from RGB-D images.
         img = self.test_ds.get_image(obs)
-        lang_goal = info['lang_goal']
+        lang_goal = info.get("lang_goal", "No lang goal specified")
 
         # Attention model forward pass.
         pick_inp = {'inp_img': img, 'lang_goal': lang_goal}

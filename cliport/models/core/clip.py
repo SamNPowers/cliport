@@ -491,7 +491,7 @@ def build_model(state_dict: dict):
         if key in state_dict:
             del state_dict[key]
 
-    convert_weights(model)
+    #convert_weights(model)  # TODO: converts to half, which isn't supported by cpu
     model.load_state_dict(state_dict)
     return model.eval()
 

@@ -11,6 +11,7 @@ from cliport import dataset
 from cliport import tasks
 from cliport.utils import utils
 from cliport.environments.environment import Environment
+from ravens.environments.environment_mcts import EnvironmentMCTS
 
 
 @hydra.main(config_path='./cfg', config_name='eval')
@@ -18,8 +19,16 @@ def main(vcfg):
     # Load train cfg
     tcfg = utils.load_hydra_config(vcfg['train_config'])
 
+    eval_task = vcfg['eval_task']
+
+    # TODO: hacky, just being lazy
+    if "mcts" in eval_task:
+        env_class = EnvironmentMCTS
+    else:
+        env_class = Environment
+
     # Initialize environment and task.
-    env = Environment(
+    env = env_class(
         vcfg['assets_root'],
         disp=vcfg['disp'],
         shared_memory=vcfg['shared_memory'],
@@ -29,7 +38,6 @@ def main(vcfg):
 
     # Choose eval mode and task.
     mode = vcfg['mode']
-    eval_task = vcfg['eval_task']
     if mode not in {'train', 'val', 'test'}:
         raise Exception("Invalid mode. Valid options: train, val, test")
 
@@ -117,7 +125,7 @@ def main(vcfg):
                 task.mode = mode
                 env.seed(seed)
                 env.set_task(task)
-                obs = env.reset()
+                obs = env.reset()[0]
                 info = env.info
                 reward = 0
 
@@ -130,7 +138,7 @@ def main(vcfg):
 
                 for _ in range(task.max_steps):
                     act = agent.act(obs, info, goal)
-                    lang_goal = info['lang_goal']
+                    lang_goal = info.get('lang_goal', "No lang goal specified")
                     print(f'Lang Goal: {lang_goal}')
                     obs, reward, done, info = env.step(act)
                     total_reward += reward
